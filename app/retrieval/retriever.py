@@ -53,11 +53,36 @@ class SchemaRetriever:
         )
         logger.info("Bulk-loaded %d table schemas into ChromaDB.", len(schemas))
 
+    @staticmethod
+    def get_heuristic_reason(table: str, question: str) -> str:
+        q = question.lower()
+        if table == "departments":
+            if "department" in q or "dept" in q:
+                return "Question asks about departments directly"
+            return "Needed to join department names or details"
+        elif table == "enrollments":
+            if "enroll" in q or "student" in q:
+                return "Needed to count students per department"
+            return "Contains student enrollment mappings"
+        elif table == "courses":
+            if "online" in q or "course" in q:
+                return "Used to filter by course attribute (online/offline)"
+            return "Contains course attributes and metadata"
+        elif table == "employees":
+            if "salary" in q or "earn" in q or "pay" in q:
+                return "Contains salary information for employees"
+            return "Contains employee details requested by the query"
+        elif table == "students":
+            return "Contains student profile information"
+        elif table == "projects":
+            return "Contains project metadata and budgets"
+        return f"Provides schema definition for {table}"
+
     def retrieve(self, question: str, top_k: int = 5) -> Dict[str, Any]:
         count = self.collection.count()
         if count == 0:
             logger.warning("ChromaDB collection is empty. No schemas to retrieve.")
-            return {"tables": [], "documents": [], "scores": [], "confidence": 0.0}
+            return {"tables": [], "documents": [], "scores": [], "confidence": 0.0, "details": {}}
 
         effective_k = min(top_k, count)
 
@@ -73,6 +98,13 @@ class SchemaRetriever:
         scores = [round(1.0 - d, 4) for d in distances]
         confidence = max(scores) if scores else 0.0
 
+        details = {}
+        for t, s in zip(tables, scores):
+            details[t] = {
+                "relevance_score": s,
+                "reason": self.get_heuristic_reason(t, question),
+            }
+
         logger.info(
             "Retrieved %d tables for question (confidence=%.4f): %s",
             len(tables),
@@ -85,4 +117,5 @@ class SchemaRetriever:
             "documents": documents,
             "scores": scores,
             "confidence": confidence,
+            "details": details,
         }

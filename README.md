@@ -92,9 +92,19 @@ Retrieve the most relevant table schemas for a natural language question.
 
 ```json
 {
-  "retrieved_tables": ["departments", "students"],
-  "scores": [0.8542, 0.7231],
-  "confidence": 0.8542
+  "retrieved_tables": ["departments", "enrollments"],
+  "scores": [0.92, 0.87],
+  "confidence": 0.90,
+  "details": {
+    "departments": {
+      "relevance_score": 0.92,
+      "reason": "Question asks about departments directly"
+    },
+    "enrollments": {
+      "relevance_score": 0.87,
+      "reason": "Needed to count students per department"
+    }
+  }
 }
 ```
 
@@ -119,12 +129,12 @@ Generate a SQL query from a natural language question using RAG context.
 
 ```json
 {
-  "sql": "SELECT d.name FROM departments d JOIN students s ON d.id = s.department_id GROUP BY d.name HAVING COUNT(s.id) > 100;",
-  "retrieved_tables": ["departments", "students"],
+  "sql": "SELECT d.dept_name, COUNT(e.student_id) as total_students FROM departments d JOIN enrollments e ON d.dept_id = e.dept_id GROUP BY d.dept_name HAVING COUNT(e.student_id) > 100",
+  "retrieved_tables": ["departments", "enrollments"],
   "is_valid_syntax": true,
   "parsing_errors": null,
-  "confidence": 0.8542,
-  "prompt_used": "..."
+  "confidence": 0.85,
+  "prompt_used": "...full prompt sent to LLM..."
 }
 ```
 
@@ -132,7 +142,7 @@ Generate a SQL query from a natural language question using RAG context.
 
 ---
 
-### `GET /benchmark`
+### `POST /benchmark`
 
 Run the built-in benchmark suite and return accuracy metrics.
 
@@ -140,11 +150,26 @@ Run the built-in benchmark suite and return accuracy metrics.
 
 ```json
 {
-  "total_queries": 5,
+  "total_queries": 25,
   "metrics": {
-    "total": 5,
-    "exact_matches": 3,
-    "accuracy": 60.0
+    "retrieval_recall_at_5": 0.88,
+    "retrieval_recall_at_10": 0.92,
+    "sql_exact_match_accuracy": 0.52,
+    "sql_execution_match_accuracy": 0.68,
+    "parsing_success_rate": 0.96,
+    "average_latency_ms": 850
+  },
+  "subtask_breakdown": {
+    "multi_table_retrieval": 0.88,
+    "column_mapping": 0.72,
+    "join_detection": 0.65,
+    "domain_knowledge": 0.58
+  },
+  "error_analysis": {
+    "retrieval_failures": 3,
+    "parsing_failures": 1,
+    "execution_failures": 8,
+    "logic_errors": 6
   }
 }
 ```

@@ -127,3 +127,4 @@ data/enterprise.db
 data/chroma_db/
 logs/*.log
 logs/
+nst_challenge.pdf

@@ -16,6 +16,10 @@ class RetrievalResponse(BaseModel):
         default=0.0,
         description="Aggregate confidence score for the retrieval (best similarity score).",
     )
+    details: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Relevance details per retrieved table, including score and reasoning.",
+    )
 
 
 class SQLGenerationResponse(BaseModel):
@@ -52,5 +56,13 @@ class BenchmarkResponse(BaseModel):
     )
     metrics: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Evaluation metrics including accuracy and exact match count.",
+        description="Summary performance metrics.",
+    )
+    subtask_breakdown: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Accuracy broken down by specific subtask.",
+    )
+    error_analysis: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Analysis of failures and errors.",
     )

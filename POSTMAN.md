@@ -33,7 +33,7 @@ Verify the service is online and lists available endpoints.
     "endpoints": [
       "POST /retrieve",
       "POST /generate-sql",
-      "GET /benchmark"
+      "POST /benchmark"
     ]
   }
   ```
@@ -41,7 +41,7 @@ Verify the service is online and lists available endpoints.
 ---
 
 ### 2. Retrieve Schema Context (`POST /retrieve`)
-Retrieves relevant table DDL schemas and confidence scores based on a natural language question.
+Retrieves relevant table DDL schemas, similarity scores, aggregate confidence, and relevance explanations per table.
 
 - **Method:** `POST`
 - **URL:** `{{base_url}}/retrieve`
@@ -56,13 +56,23 @@ Retrieves relevant table DDL schemas and confidence scores based on a natural la
   {
     "retrieved_tables": [
       "departments",
-      "employees"
+      "enrollments"
     ],
     "scores": [
-      0.6163,
-      0.5378
+      0.92,
+      0.87
     ],
-    "confidence": 0.6163
+    "confidence": 0.90,
+    "details": {
+      "departments": {
+        "relevance_score": 0.92,
+        "reason": "Question asks about departments directly"
+      },
+      "enrollments": {
+        "relevance_score": 0.87,
+        "reason": "Needed to count students per department"
+      }
+    }
   }
   ```
 
@@ -101,19 +111,34 @@ Translates a natural language question into SQLite SQL using RAG schema context 
 
 ---
 
-### 4. Run Benchmark Suite (`GET /benchmark`)
+### 4. Run Benchmark Suite (`POST /benchmark`)
 Evaluates the Text-to-SQL generation accuracy against a built-in benchmark dataset.
 
-- **Method:** `GET`
+- **Method:** `POST`
 - **URL:** `{{base_url}}/benchmark`
 - **Expected Response (200 OK):**
   ```json
   {
-    "total_queries": 5,
+    "total_queries": 25,
     "metrics": {
-      "total": 5,
-      "exact_matches": 5,
-      "accuracy": 100.0
+      "retrieval_recall_at_5": 0.88,
+      "retrieval_recall_at_10": 0.92,
+      "sql_exact_match_accuracy": 0.52,
+      "sql_execution_match_accuracy": 0.68,
+      "parsing_success_rate": 0.96,
+      "average_latency_ms": 850
+    },
+    "subtask_breakdown": {
+      "multi_table_retrieval": 0.88,
+      "column_mapping": 0.72,
+      "join_detection": 0.65,
+      "domain_knowledge": 0.58
+    },
+    "error_analysis": {
+      "retrieval_failures": 3,
+      "parsing_failures": 1,
+      "execution_failures": 8,
+      "logic_errors": 6
     }
   }
   ```
@@ -146,5 +171,5 @@ curl --location 'http://localhost:8000/generate-sql' \
 }'
 
 # Run Benchmark
-curl --location 'http://localhost:8000/benchmark'
+curl --location --request POST 'http://localhost:8000/benchmark'
 ```

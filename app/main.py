@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -88,7 +89,7 @@ def root():
         "endpoints": [
             "POST /retrieve",
             "POST /generate-sql",
-            "GET /benchmark",
+            "POST /benchmark",
         ],
     }
 
@@ -104,6 +105,7 @@ def retrieve_schemas(request: RetrieveRequest):
             retrieved_tables=result["tables"],
             scores=result["scores"],
             confidence=result["confidence"],
+            details=result["details"],
         )
     except Exception as e:
         logger.error("Retrieval failed: %s", str(e))
@@ -160,9 +162,9 @@ def generate_sql(request: GenerateSQLRequest):
     )
 
 
-@app.get("/benchmark", response_model=BenchmarkResponse)
+@app.post("/benchmark", response_model=BenchmarkResponse)
 def run_benchmark():
-    logger.info("GET /benchmark — running benchmark suite...")
+    logger.info("POST /benchmark — running benchmark suite...")
 
     benchmark_queries = TextToSQLEvaluator.get_benchmark_queries()
     predictions: list[dict] = []
@@ -170,9 +172,18 @@ def run_benchmark():
     for item in benchmark_queries:
         question = item["question"]
         ground_truth = item["ground_truth_sql"]
+        expected_tables = item.get("expected_tables", [])
+        subtasks = item.get("subtasks", [])
+
+        start_time = time.time()
+        retrieved_tables = []
+        is_valid = False
+        error = None
+        predicted_sql = ""
 
         try:
             result = retriever.retrieve(question)
+            retrieved_tables = result["tables"]
             schema_context = "\n\n".join(result["documents"])
 
             prompt = PromptBuilder.build_prompt(
@@ -181,18 +192,31 @@ def run_benchmark():
             )
             raw_response = generator.generate(prompt)
             predicted_sql = SQLGenerator.extract_sql(raw_response)
+            is_valid, error = validator.validate(predicted_sql)
         except Exception as e:
             logger.error("Benchmark generation failed for '%s': %s", question, str(e))
-            predicted_sql = ""
+            error = str(e)
+
+        end_time = time.time()
+        latency_ms = (end_time - start_time) * 1000.0
 
         predictions.append({
-            "predicted_sql": predicted_sql,
+            "question": question,
             "ground_truth_sql": ground_truth,
+            "predicted_sql": predicted_sql,
+            "expected_tables": expected_tables,
+            "retrieved_tables": retrieved_tables,
+            "subtasks": subtasks,
+            "is_valid_syntax": is_valid,
+            "parsing_errors": error,
+            "latency_ms": latency_ms
         })
 
-    metrics = evaluator.evaluate(predictions)
+    result = evaluator.evaluate(predictions)
 
     return BenchmarkResponse(
-        total_queries=metrics["total"],
-        metrics=metrics,
+        total_queries=result["total_queries"],
+        metrics=result["metrics"],
+        subtask_breakdown=result["subtask_breakdown"],
+        error_analysis=result["error_analysis"],
     )
