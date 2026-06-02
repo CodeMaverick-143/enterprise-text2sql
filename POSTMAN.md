@@ -66,6 +66,8 @@ Retrieves relevant table DDL schemas and confidence scores based on a natural la
   }
   ```
 
+![POST /retrieve Postman Screenshot](images/postman_retrieve.png)
+
 ---
 
 ### 3. Generate SQL Query (`POST /generate-sql`)
@@ -95,6 +97,8 @@ Translates a natural language question into SQLite SQL using RAG schema context 
   }
   ```
 
+![POST /generate-sql Postman Screenshot](images/postman_generate_sql.png)
+
 ---
 
 ### 4. Run Benchmark Suite (`GET /benchmark`)
@@ -113,6 +117,8 @@ Evaluates the Text-to-SQL generation accuracy against a built-in benchmark datas
     }
   }
   ```
+
+![GET /benchmark Postman Screenshot](images/postman_benchmark.png)
 
 ---
 
