@@ -92,16 +92,36 @@ Retrieve the most relevant table schemas for a natural language question.
 
 ```json
 {
-  "retrieved_tables": ["departments", "enrollments"],
-  "scores": [0.92, 0.87],
-  "confidence": 0.90,
+  "retrieved_tables": [
+    "students",
+    "departments",
+    "courses",
+    "enrollments",
+    "dummy_table_15"
+  ],
+  "scores": [
+    0.6272,
+    0.609,
+    0.5697,
+    0.568,
+    0.5671
+  ],
+  "confidence": 0.6272,
   "details": {
+    "students": {
+      "relevance_score": 0.6272,
+      "reason": "Contains student profile information"
+    },
     "departments": {
-      "relevance_score": 0.92,
+      "relevance_score": 0.609,
       "reason": "Question asks about departments directly"
     },
+    "courses": {
+      "relevance_score": 0.5697,
+      "reason": "Contains course attributes and metadata"
+    },
     "enrollments": {
-      "relevance_score": 0.87,
+      "relevance_score": 0.568,
       "reason": "Needed to count students per department"
     }
   }
@@ -120,7 +140,7 @@ Generate a SQL query from a natural language question using RAG context.
 
 ```json
 {
-  "question": "Which departments have more than 100 students?",
+  "question": "List all employees in the Engineering department.",
   "use_retrieved_context": true
 }
 ```
@@ -129,12 +149,18 @@ Generate a SQL query from a natural language question using RAG context.
 
 ```json
 {
-  "sql": "SELECT d.dept_name, COUNT(e.student_id) as total_students FROM departments d JOIN enrollments e ON d.dept_id = e.dept_id GROUP BY d.dept_name HAVING COUNT(e.student_id) > 100",
-  "retrieved_tables": ["departments", "enrollments"],
+  "sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name = 'Engineering';",
+  "retrieved_tables": [
+    "employees",
+    "students",
+    "projects",
+    "dummy_table_10",
+    "departments"
+  ],
   "is_valid_syntax": true,
   "parsing_errors": null,
-  "confidence": 0.85,
-  "prompt_used": "...full prompt sent to LLM..."
+  "confidence": 0.6136,
+  "prompt_used": "You are an expert SQLite SQL engineer...\n..."
 }
 ```
 
@@ -152,24 +178,24 @@ Run the built-in benchmark suite and return accuracy metrics.
 {
   "total_queries": 25,
   "metrics": {
-    "retrieval_recall_at_5": 0.88,
-    "retrieval_recall_at_10": 0.92,
-    "sql_exact_match_accuracy": 0.52,
+    "retrieval_recall_at_5": 0.91,
+    "retrieval_recall_at_10": 0.91,
+    "sql_exact_match_accuracy": 0.36,
     "sql_execution_match_accuracy": 0.68,
-    "parsing_success_rate": 0.96,
-    "average_latency_ms": 850
+    "parsing_success_rate": 1.0,
+    "average_latency_ms": 586.53
   },
   "subtask_breakdown": {
-    "multi_table_retrieval": 0.88,
-    "column_mapping": 0.72,
-    "join_detection": 0.65,
-    "domain_knowledge": 0.58
+    "column_mapping": 0.9,
+    "multi_table_retrieval": 0.5,
+    "join_detection": 0.5,
+    "domain_knowledge": 0.5
   },
   "error_analysis": {
-    "retrieval_failures": 3,
-    "parsing_failures": 1,
-    "execution_failures": 8,
-    "logic_errors": 6
+    "retrieval_failures": 0,
+    "parsing_failures": 0,
+    "execution_failures": 0,
+    "logic_errors": 8
   }
 }
 ```
