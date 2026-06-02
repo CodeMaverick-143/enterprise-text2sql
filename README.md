@@ -98,6 +98,8 @@ Retrieve the most relevant table schemas for a natural language question.
 }
 ```
 
+![POST /retrieve Screenshot](images/postman_retrieve.png)
+
 ---
 
 ### `POST /generate-sql`
@@ -126,6 +128,8 @@ Generate a SQL query from a natural language question using RAG context.
 }
 ```
 
+![POST /generate-sql Screenshot](images/postman_generate_sql.png)
+
 ---
 
 ### `GET /benchmark`
@@ -144,6 +148,8 @@ Run the built-in benchmark suite and return accuracy metrics.
   }
 }
 ```
+
+![GET /benchmark Screenshot](images/postman_benchmark.png)
 
 ---
 
