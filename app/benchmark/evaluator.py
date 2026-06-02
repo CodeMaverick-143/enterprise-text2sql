@@ -1,43 +1,75 @@
-from typing import List, Dict, Any
+import logging
+from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
+
+BENCHMARK_QUERIES = [
+    {
+        "question": "How many employees are there?",
+        "ground_truth_sql": "SELECT COUNT(*) FROM employees;",
+    },
+    {
+        "question": "List all department names.",
+        "ground_truth_sql": "SELECT name FROM departments;",
+    },
+    {
+        "question": "What is the highest salary?",
+        "ground_truth_sql": "SELECT MAX(salary) FROM employees;",
+    },
+    {
+        "question": "Which employees are in the Engineering department?",
+        "ground_truth_sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name = 'Engineering';",
+    },
+    {
+        "question": "What is the total budget across all departments?",
+        "ground_truth_sql": "SELECT SUM(budget) FROM departments;",
+    },
+]
+
 
 class TextToSQLEvaluator:
     @staticmethod
-    def calculate_exact_match(predicted_sql: str, ground_truth_sql: str) -> bool:
-        """
-        Compares query structures (ignoring minor formatting details like spaces and casing).
-        """
+    def normalize_sql(sql: str) -> str:
+        normalized = " ".join(sql.lower().strip().split())
+        if normalized.endswith(";"):
+            normalized = normalized[:-1].strip()
+        return normalized
+
+    @staticmethod
+    def exact_match(predicted_sql: str, ground_truth_sql: str) -> bool:
         if not predicted_sql or not ground_truth_sql:
             return False
-            
-        p_norm = " ".join(predicted_sql.lower().strip().split())
-        g_norm = " ".join(ground_truth_sql.lower().strip().split())
-        
-        # Strip trailing semicolons
-        if p_norm.endswith(";"):
-            p_norm = p_norm[:-1]
-        if g_norm.endswith(";"):
-            g_norm = g_norm[:-1]
-            
-        return p_norm == g_norm
 
-    def evaluate_dataset(self, predictions: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Evaluates a list of predictions containing:
-        [{"predicted_sql": "...", "ground_truth_sql": "..."}]
-        Returns performance metrics.
-        """
+        p = TextToSQLEvaluator.normalize_sql(predicted_sql)
+        g = TextToSQLEvaluator.normalize_sql(ground_truth_sql)
+        return p == g
+
+    def evaluate(self, predictions: List[Dict[str, str]]) -> Dict[str, Any]:
         total = len(predictions)
         if total == 0:
-            return {"accuracy": 0.0, "exact_matches": 0, "total": 0}
+            return {"total": 0, "exact_matches": 0, "accuracy": 0.0}
 
         matches = 0
         for pred in predictions:
-            if self.calculate_exact_match(pred.get("predicted_sql", ""), pred.get("ground_truth_sql", "")):
+            predicted = pred.get("predicted_sql", "")
+            ground_truth = pred.get("ground_truth_sql", "")
+            if self.exact_match(predicted, ground_truth):
                 matches += 1
 
-        accuracy = (matches / total) * 100
+        accuracy = round((matches / total) * 100, 2)
+        logger.info(
+            "Benchmark: %d/%d exact matches (%.2f%% accuracy).",
+            matches,
+            total,
+            accuracy,
+        )
+
         return {
-            "accuracy": round(accuracy, 2),
+            "total": total,
             "exact_matches": matches,
-            "total": total
+            "accuracy": accuracy,
         }
+
+    @staticmethod
+    def get_benchmark_queries() -> List[Dict[str, str]]:
+        return BENCHMARK_QUERIES

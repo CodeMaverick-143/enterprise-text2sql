@@ -1,113 +1,192 @@
-# Enterprise Text-to-SQL Platform
+# Enterprise Text-to-SQL
 
-A production-grade, secure Natural Language to SQL translation, validation, and safe query execution platform.
+A production-grade FastAPI microservice that converts natural language questions into executable SQLite SQL using Retrieval-Augmented Generation (RAG).
+
+---
+
+## Tech Stack
+
+- **API Framework:** FastAPI
+- **LLM Provider:** Groq API (llama-3.3-70b-versatile)
+- **Vector Store:** ChromaDB
+- **Embeddings:** Sentence Transformers (BAAI/bge-small-en-v1.5)
+- **Database:** SQLite
+- **Validation:** sqlparse
+- **Models:** Pydantic v2
+- **Language:** Python 3.11+
 
 ---
 
 ## Folder Structure
 
-```txt
-enterprise-text2sql/
-├── app/
-│   ├── main.py                     # FastAPI base router & endpoints
-│   ├── retrieval/
-│   │   ├── embedder.py             # Modular sentence embeddings
-│   │   └── retriever.py            # ChromaDB similarity search
-│   ├── llm/
-│   │   ├── prompt_builder.py       # SQL & Explanation prompt generators
-│   │   └── generator.py            # Groq completion orchestration
-│   ├── database/
-│   │   ├── schema_loader.py        # Schema introspection (SQLAlchemy)
-│   │   ├── executor.py             # Secure read-only sql executors
-│   │   └── initialize_db.py        # Sample db initializer and seeder
-│   ├── validation/
-│   │   └── sql_validator.py        # Syntactical checks & protection bounds
-│   ├── benchmark/
-│   │   └── evaluator.py            # Exact match metrics & score cards
-│   └── models/
-│       ├── request_models.py       # Pydantic schemas (Incoming payload)
-│       └── response_models.py      # Pydantic schemas (Outbound results)
-├── data/                           # Relational and vector storage directory
-├── logs/                           # System application files directory
-├── .env                            # Application environment keys
-├── requirements.txt                # Pinned pip dependencies
-├── pyproject.toml                  # uv dependency mapping
-└── README.md                       # Comprehensive guide (This document)
+```
+app/
+├── main.py                     # FastAPI app with endpoints and startup logic
+├── retrieval/
+│   ├── embedder.py             # Sentence Transformer embedding service
+│   └── retriever.py            # ChromaDB semantic schema retrieval
+├── llm/
+│   ├── prompt_builder.py       # Structured prompt construction with few-shot examples
+│   └── generator.py            # Groq API integration and SQL extraction
+├── database/
+│   ├── schema_loader.py        # SQLite schema introspection and DDL generation
+│   └── executor.py             # Safe read-only SQL execution
+├── validation/
+│   └── sql_validator.py        # Syntax validation and destructive query blocking
+├── benchmark/
+│   └── evaluator.py            # Exact-match accuracy evaluation
+└── models/
+    ├── request_models.py       # Pydantic request schemas
+    └── response_models.py      # Pydantic response schemas
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Prerequisites
-
-Ensure you have `uv` installed, which resolves package mappings:
+### 1. Install Dependencies
 
 ```bash
-# Sync package environments
 uv sync
 ```
 
-### 2. Seeding Sample SQLite Database
+### 2. Configure Environment
 
-Seed sample tables (`departments` and `employees`) into your sqlite DB for immediate querying:
-
-```bash
-.venv/bin/python app/database/initialize_db.py
-```
-
-### 3. Setup Groq API Keys
-
-Copy and update keys inside your `.env` configuration file:
+Create a `.env` file in the project root:
 
 ```ini
 GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=mixtral-8x7b-32768
+GROQ_MODEL=llama-3.3-70b-versatile
+DATABASE_URL=sqlite:///./data/enterprise.db
+CHROMA_DB_PATH=./data/chroma_db
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 ```
 
-### 4. Running the API Server
-
-Start the dev server:
+### 3. Start the Server
 
 ```bash
-.venv/bin/uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser to view the interactive Swagger Documentation.
+### 4. Open API Docs
+
+Visit [http://localhost:8000/docs](http://localhost:8000/docs) for the interactive Swagger UI.
 
 ---
 
-## Core API Endpoints
+## API Endpoints
 
-### `POST /api/generate`
+### `POST /retrieve`
 
-Translates user natural language into standard SQL queries, parses it for safety metrics, executes it securely, and retrieves a friendly business description.
+Retrieve the most relevant table schemas for a natural language question.
 
-- **Payload:**
-  ```json
-  {
-    "question": "Show me the top 3 highest earning employees in the Engineering department"
+**Request:**
+
+```json
+{
+  "question": "Which departments have more than 100 students?"
+}
+```
+
+**Response:**
+
+```json
+{
+  "retrieved_tables": ["departments", "students"],
+  "scores": [0.8542, 0.7231],
+  "confidence": 0.8542
+}
+```
+
+---
+
+### `POST /generate-sql`
+
+Generate a SQL query from a natural language question using RAG context.
+
+**Request:**
+
+```json
+{
+  "question": "Which departments have more than 100 students?",
+  "use_retrieved_context": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "sql": "SELECT d.name FROM departments d JOIN students s ON d.id = s.department_id GROUP BY d.name HAVING COUNT(s.id) > 100;",
+  "retrieved_tables": ["departments", "students"],
+  "is_valid_syntax": true,
+  "parsing_errors": null,
+  "confidence": 0.8542,
+  "prompt_used": "..."
+}
+```
+
+---
+
+### `GET /benchmark`
+
+Run the built-in benchmark suite and return accuracy metrics.
+
+**Response:**
+
+```json
+{
+  "total_queries": 5,
+  "metrics": {
+    "total": 5,
+    "exact_matches": 3,
+    "accuracy": 60.0
   }
-  ```
+}
+```
 
-### `POST /api/validate`
+---
 
-Validates standard SQL formats, runs syntactical evaluations, and cleans/prettifies it.
+## Pipeline Architecture
 
-- **Payload:**
-  ```json
-  {
-    "sql": "select * from employees where department_id=2"
-  }
-  ```
-
-### `GET /api/schema`
-
-Retrieves live database introspection information parsed into DDL prompt structures.
+```
+User Question
+     │
+     ▼
+┌─────────────┐     ┌──────────────┐
+│  Embedder   │────▶│  ChromaDB    │
+│  (BGE)      │     │  (Retriever) │
+└─────────────┘     └──────┬───────┘
+                           │ Top-K schemas
+                           ▼
+                    ┌──────────────┐
+                    │ Prompt       │
+                    │ Builder      │
+                    └──────┬───────┘
+                           │ Structured prompt
+                           ▼
+                    ┌──────────────┐
+                    │ Groq LLM    │
+                    │ (Generator)  │
+                    └──────┬───────┘
+                           │ Raw SQL
+                           ▼
+                    ┌──────────────┐
+                    │ SQL          │
+                    │ Validator    │
+                    └──────┬───────┘
+                           │ Validated SQL
+                           ▼
+                    ┌──────────────┐
+                    │ SQL          │
+                    │ Executor     │
+                    └──────────────┘
+```
 
 ---
 
 ## Security Guardrails
 
-- **Read-Only Constraints:** Queries are strictly scanned for write/destructive tokens (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`). Destructive scripts are blocked dynamically before entering the parser loop.
-- **Result Limits:** The database executor enforces safety row limits (`limit=100`) on execution targets.
+- **SELECT-only enforcement:** Only SELECT queries are permitted. The validator blocks DROP, DELETE, UPDATE, ALTER, TRUNCATE, INSERT, CREATE, and REPLACE.
+- **sqlparse validation:** All generated SQL is parsed and validated before execution.
+- **Read-only execution:** The SQLite executor operates in read-only mode with no write capabilities.
