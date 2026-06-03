@@ -99,13 +99,7 @@ Retrieve the most relevant table schemas for a natural language question.
     "enrollments",
     "dummy_table_15"
   ],
-  "scores": [
-    0.6272,
-    0.609,
-    0.5697,
-    0.568,
-    0.5671
-  ],
+  "scores": [0.6272, 0.609, 0.5697, 0.568, 0.5671],
   "confidence": 0.6272,
   "details": {
     "students": {
@@ -247,3 +241,13 @@ User Question
 - **SELECT-only enforcement:** Only SELECT queries are permitted. The validator blocks DROP, DELETE, UPDATE, ALTER, TRUNCATE, INSERT, CREATE, and REPLACE.
 - **sqlparse validation:** All generated SQL is parsed and validated before execution.
 - **Read-only execution:** The SQLite executor operates in read-only mode with no write capabilities.
+
+---
+
+## About the Author & Related Work
+
+This project represents my work in the Natural Language Processing to SQL (NLP-to-SQL) domain, an area I have been actively exploring and building in for the past 6–7 months. 
+
+As part of this exploration, I also developed **Truncate**, an AI-assisted SQL IDE that allows users to connect to databases (such as MySQL and PostgreSQL) or upload CSV datasets, enabling them to compose and execute SQL queries seamlessly with AI assistance.
+
+If you find this project interesting, feel free to check out the product demo here: **[Truncate Product Demo](https://drive.google.com/file/d/1Zyc9nXNblvkhLUflRa59zugBiIHBTzf-/view?usp=sharing)**
