@@ -244,10 +244,12 @@ User Question
 
 ---
 
-## About the Author & Related Work
+## About me & Related Work
 
-This project represents my work in the Natural Language Processing to SQL (NLP-to-SQL) domain, an area I have been actively exploring and building in for the past 6–7 months. 
+This project represents my work in the Natural Language Processing to SQL (NLP-to-SQL) domain, an area I have been actively exploring and building in for the past 6–7 months.
 
 As part of this exploration, I also developed **Truncate**, an AI-assisted SQL IDE that allows users to connect to databases (such as MySQL and PostgreSQL) or upload CSV datasets, enabling them to compose and execute SQL queries seamlessly with AI assistance.
 
 If you find this project interesting, feel free to check out the product demo here: **[Truncate Product Demo](https://drive.google.com/file/d/1Zyc9nXNblvkhLUflRa59zugBiIHBTzf-/view?usp=sharing)**
+
+*(Truncate is built using Tauri, Rust, and Ollama)*
