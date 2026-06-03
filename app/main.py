@@ -122,7 +122,7 @@ def generate_sql(request: GenerateSQLRequest):
 
     if request.use_retrieved_context:
         try:
-            result = retriever.retrieve(request.question)
+            result = retriever.retrieve(request.question, top_k=3)
             retrieved_tables = result["tables"]
             schema_context = "\n\n".join(result["documents"])
             confidence = result["confidence"]
@@ -166,7 +166,24 @@ def generate_sql(request: GenerateSQLRequest):
 def run_benchmark():
     logger.info("POST /benchmark — running benchmark suite...")
 
-    benchmark_queries = TextToSQLEvaluator.get_benchmark_queries()
+    try:
+        benchmark_queries = TextToSQLEvaluator.get_benchmark_queries()
+    except Exception as e:
+        logger.error("Failed to load benchmark queries: %s", str(e))
+        if "gated" in str(e).lower() or "forbidden" in str(e).lower() or "403" in str(e).lower() or "access" in str(e).lower():
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Access Denied: {str(e)}. Please visit "
+                    "https://huggingface.co/datasets/beaverbench/beaver-query "
+                    "and accept the dataset terms using the Hugging Face account associated with your HF_TOKEN."
+                )
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to load benchmark queries: {str(e)}"
+        )
+
     predictions: list[dict] = []
 
     for item in benchmark_queries:
@@ -182,7 +199,7 @@ def run_benchmark():
         predicted_sql = ""
 
         try:
-            result = retriever.retrieve(question)
+            result = retriever.retrieve(question, top_k=3)
             retrieved_tables = result["tables"]
             schema_context = "\n\n".join(result["documents"])
 

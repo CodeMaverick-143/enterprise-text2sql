@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sqlite3
@@ -5,158 +6,8 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-BENCHMARK_QUERIES = [
-    {
-        "question": "How many employees are there?",
-        "ground_truth_sql": "SELECT COUNT(*) FROM employees;",
-        "expected_tables": ["employees"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "List all department names.",
-        "ground_truth_sql": "SELECT name FROM departments;",
-        "expected_tables": ["departments"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "What is the highest salary?",
-        "ground_truth_sql": "SELECT MAX(salary) FROM employees;",
-        "expected_tables": ["employees"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "Which employees are in the Engineering department?",
-        "ground_truth_sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name = 'Engineering';",
-        "expected_tables": ["employees", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "What is the total budget across all departments?",
-        "ground_truth_sql": "SELECT SUM(budget) FROM departments;",
-        "expected_tables": ["departments"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "How many courses are offered by the Engineering department?",
-        "ground_truth_sql": "SELECT COUNT(*) FROM courses c JOIN departments d ON c.department_id = d.id WHERE d.name = 'Engineering';",
-        "expected_tables": ["courses", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "List the names of all online courses.",
-        "ground_truth_sql": "SELECT name FROM courses WHERE is_online = 1;",
-        "expected_tables": ["courses"],
-        "subtasks": ["domain_knowledge"]
-    },
-    {
-        "question": "What is the total student count enrolled in all courses?",
-        "ground_truth_sql": "SELECT SUM(student_count) FROM enrollments;",
-        "expected_tables": ["enrollments"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "Which departments have more than 100 students?",
-        "ground_truth_sql": "SELECT d.name FROM departments d JOIN courses c ON d.id = c.department_id JOIN enrollments e ON c.id = e.course_id GROUP BY d.name HAVING SUM(e.student_count) > 100;",
-        "expected_tables": ["departments", "courses", "enrollments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "Show me departments ranked by total enrollment, excluding online courses.",
-        "ground_truth_sql": "SELECT d.name, SUM(e.student_count) AS total_enrollment FROM departments d JOIN courses c ON d.id = c.department_id JOIN enrollments e ON c.id = e.course_id WHERE c.is_online = 0 GROUP BY d.name ORDER BY total_enrollment DESC;",
-        "expected_tables": ["departments", "courses", "enrollments"],
-        "subtasks": ["multi_table_retrieval", "join_detection", "domain_knowledge"]
-    },
-    {
-        "question": "How many students are majoring in each department?",
-        "ground_truth_sql": "SELECT d.name, COUNT(s.id) FROM departments d LEFT JOIN students s ON d.id = s.major_dept_id GROUP BY d.name;",
-        "expected_tables": ["departments", "students"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "List the names of students enrolled in 'Introduction to Computer Science'.",
-        "ground_truth_sql": "SELECT s.name FROM students s JOIN enrollments e ON s.id = e.student_id JOIN courses c ON e.course_id = c.id WHERE c.name = 'Introduction to Computer Science';",
-        "expected_tables": ["students", "enrollments", "courses"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "What is the average salary of employees in each department?",
-        "ground_truth_sql": "SELECT d.name, AVG(e.salary) FROM departments d LEFT JOIN employees e ON d.id = e.department_id GROUP BY d.name;",
-        "expected_tables": ["departments", "employees"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "Which course has the highest number of credits?",
-        "ground_truth_sql": "SELECT name, credits FROM courses ORDER BY credits DESC LIMIT 1;",
-        "expected_tables": ["courses"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "Find the names of projects in the Sales department.",
-        "ground_truth_sql": "SELECT p.name FROM projects p JOIN departments d ON p.department_id = d.id WHERE d.name = 'Sales';",
-        "expected_tables": ["projects", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "What is the total budget allocated to projects in the Engineering department?",
-        "ground_truth_sql": "SELECT SUM(p.budget) FROM projects p JOIN departments d ON p.department_id = d.id WHERE d.name = 'Engineering';",
-        "expected_tables": ["projects", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "List the names of employees earning more than 100000.",
-        "ground_truth_sql": "SELECT name FROM employees WHERE salary > 100000;",
-        "expected_tables": ["employees"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "How many offline courses are offered by the Engineering department?",
-        "ground_truth_sql": "SELECT COUNT(*) FROM courses c JOIN departments d ON c.department_id = d.id WHERE d.name = 'Engineering' AND c.is_online = 0;",
-        "expected_tables": ["courses", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection", "domain_knowledge"]
-    },
-    {
-        "question": "Which students are enrolled in online courses?",
-        "ground_truth_sql": "SELECT DISTINCT s.name FROM students s JOIN enrollments e ON s.id = e.student_id JOIN courses c ON e.course_id = c.id WHERE c.is_online = 1;",
-        "expected_tables": ["students", "enrollments", "courses"],
-        "subtasks": ["multi_table_retrieval", "join_detection", "domain_knowledge"]
-    },
-    {
-        "question": "Find the total enrollment count for each course.",
-        "ground_truth_sql": "SELECT c.name, SUM(e.student_count) FROM courses c LEFT JOIN enrollments e ON c.id = e.course_id GROUP BY c.name;",
-        "expected_tables": ["courses", "enrollments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "What is the name of the department with the lowest budget?",
-        "ground_truth_sql": "SELECT name, budget FROM departments ORDER BY budget ASC LIMIT 1;",
-        "expected_tables": ["departments"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "List all employees who are not assigned to any department.",
-        "ground_truth_sql": "SELECT name FROM employees WHERE department_id IS NULL;",
-        "expected_tables": ["employees"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "Show the names of projects with a budget greater than 50000.",
-        "ground_truth_sql": "SELECT name FROM projects WHERE budget > 50000;",
-        "expected_tables": ["projects"],
-        "subtasks": ["column_mapping"]
-    },
-    {
-        "question": "Find the number of enrollments for each department.",
-        "ground_truth_sql": "SELECT d.name, COUNT(e.student_id) FROM departments d JOIN courses c ON d.id = c.department_id JOIN enrollments e ON c.id = e.course_id GROUP BY d.name;",
-        "expected_tables": ["departments", "courses", "enrollments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    },
-    {
-        "question": "List all courses with their department names.",
-        "ground_truth_sql": "SELECT c.name, d.name FROM courses c JOIN departments d ON c.department_id = d.id;",
-        "expected_tables": ["courses", "departments"],
-        "subtasks": ["multi_table_retrieval", "join_detection"]
-    }
-]
+# BENCHMARK_QUERIES are dynamically loaded from Hugging Face in get_benchmark_queries()
+
 
 
 class TextToSQLEvaluator:
@@ -319,4 +170,232 @@ class TextToSQLEvaluator:
 
     @staticmethod
     def get_benchmark_queries() -> List[Dict[str, Any]]:
-        return BENCHMARK_QUERIES
+        fallback_queries = [
+            {
+                "question": "How many buildings are registered?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM BUILDINGS;",
+                "expected_tables": ["BUILDINGS"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "List facility floors that are in buildings.",
+                "ground_truth_sql": "SELECT f.FLOOR, b.BUILDING_NAME FROM FCLT_FLOOR f JOIN FCLT_BUILDING b ON f.FCLT_BUILDING_KEY = b.FCLT_BUILDING_KEY;",
+                "expected_tables": ["FCLT_FLOOR", "FCLT_BUILDING"],
+                "subtasks": ["multi_table_retrieval", "join_detection"]
+            },
+            {
+                "question": "Count the number of academic terms for the academic year 2026-2027.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM ACADEMIC_TERMS WHERE ACADEMIC_YEAR = '2026-2027';",
+                "expected_tables": ["ACADEMIC_TERMS"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "How many rooms are listed in the facility rooms table?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM FAC_ROOMS;",
+                "expected_tables": ["FAC_ROOMS"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Find Moira lists and their member names.",
+                "ground_truth_sql": "SELECT m.MOIRA_LIST_NAME, d.MOIRA_LIST_MEMBER FROM MOIRA_LIST m JOIN MOIRA_LIST_DETAIL d ON m.MOIRA_LIST_KEY = d.MOIRA_LIST_KEY;",
+                "expected_tables": ["MOIRA_LIST", "MOIRA_LIST_DETAIL"],
+                "subtasks": ["multi_table_retrieval", "join_detection"]
+            },
+            {
+                "question": "Show the count of Drupal employee directory records matching HR organization units.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM DRUPAL_EMPLOYEE_DIRECTORY d JOIN HR_ORG_UNIT h ON d.HR_ORG_UNIT_ID = h.HR_ORG_UNIT_ID;",
+                "expected_tables": ["DRUPAL_EMPLOYEE_DIRECTORY", "HR_ORG_UNIT"],
+                "subtasks": ["multi_table_retrieval", "join_detection"]
+            },
+            {
+                "question": "What is the total number of HR organization units at level Department?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM HR_ORG_UNIT WHERE HR_ORG_UNIT_LEVEL = 'Department';",
+                "expected_tables": ["HR_ORG_UNIT"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "How many subjects are offered in the term 2014FA?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM LIBRARY_SUBJECT_OFFERED WHERE TERM_CODE = '2014FA';",
+                "expected_tables": ["LIBRARY_SUBJECT_OFFERED"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "Count the total number of warehouse users who have the title Administrator.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM WAREHOUSE_USERS WHERE TITLE = 'Administrator';",
+                "expected_tables": ["WAREHOUSE_USERS"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "How many student departments match the SIS department codes?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM STUDENT_DEPARTMENT s JOIN SIS_DEPARTMENT d ON s.DEPARTMENT_CODE = d.DEPARTMENT_CODE;",
+                "expected_tables": ["STUDENT_DEPARTMENT", "SIS_DEPARTMENT"],
+                "subtasks": ["multi_table_retrieval", "join_detection"]
+            },
+            {
+                "question": "Show the count of all buildings in the FCLT_BUILDING table.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM FCLT_BUILDING;",
+                "expected_tables": ["FCLT_BUILDING"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Count the number of rooms listed in the FCLT_ROOMS table.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM FCLT_ROOMS;",
+                "expected_tables": ["FCLT_ROOMS"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "How many people are listed in the IAP subject person table?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM IAP_SUBJECT_PERSON;",
+                "expected_tables": ["IAP_SUBJECT_PERSON"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "What is the total number of records in the HR faculty roster with Professor rank?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM HR_FACULTY_ROSTER WHERE JOB_TITLE = 'Professor';",
+                "expected_tables": ["HR_FACULTY_ROSTER"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "Count all offered subjects with subject enrollment number greater than 50.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM SUBJECT_OFFERED WHERE SUBJECT_ENROLLMENT_NUMBER > 50;",
+                "expected_tables": ["SUBJECT_OFFERED"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "How many space usage records are stored?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM SPACE_USAGE;",
+                "expected_tables": ["SPACE_USAGE"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Show the count of students in the MIT student directory.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM MIT_STUDENT_DIRECTORY;",
+                "expected_tables": ["MIT_STUDENT_DIRECTORY"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Count the number of courses listed in the CIS course catalog.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM CIS_COURSE_CATALOG;",
+                "expected_tables": ["CIS_COURSE_CATALOG"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "How many records are in the Moira list detail table?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM MOIRA_LIST_DETAIL;",
+                "expected_tables": ["MOIRA_LIST_DETAIL"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "What is the count of roles in the roles fin PA table?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM ROLES_FIN_PA;",
+                "expected_tables": ["ROLES_FIN_PA"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "How many departments exist in the SIS department table?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM SIS_DEPARTMENT;",
+                "expected_tables": ["SIS_DEPARTMENT"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Count the total number of CIP classification records with version 2026 (using CIP_WITH_VERSION).",
+                "ground_truth_sql": "SELECT COUNT(*) FROM CIP_WITH_VERSION WHERE VERSION = '2026';",
+                "expected_tables": ["CIP_WITH_VERSION"],
+                "subtasks": ["column_mapping", "domain_knowledge"]
+            },
+            {
+                "question": "Show the count of Moira list detail records matching Moira list owners.",
+                "ground_truth_sql": "SELECT COUNT(*) FROM MOIRA_LIST_DETAIL d JOIN MOIRA_LIST_OWNER o ON d.MOIRA_LIST_OWNER_KEY = o.MOIRA_LIST_OWNER_KEY;",
+                "expected_tables": ["MOIRA_LIST_DETAIL", "MOIRA_LIST_OWNER"],
+                "subtasks": ["multi_table_retrieval", "join_detection"]
+            },
+            {
+                "question": "How many reserve library materials are listed (using the LIBRARY_RESERVE_MATRL_DETAIL table)?",
+                "ground_truth_sql": "SELECT COUNT(*) FROM LIBRARY_RESERVE_MATRL_DETAIL;",
+                "expected_tables": ["LIBRARY_RESERVE_MATRL_DETAIL"],
+                "subtasks": ["column_mapping"]
+            },
+            {
+                "question": "Count the number of facility organizations (using the FCLT_ORGANIZATION table).",
+                "ground_truth_sql": "SELECT COUNT(*) FROM FCLT_ORGANIZATION;",
+                "expected_tables": ["FCLT_ORGANIZATION"],
+                "subtasks": ["column_mapping"]
+            }
+        ]
+
+
+        metadata_path = "./data/active_db.json"
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(
+                "Active database metadata not found. Please run database initialization first (initialize_db.py)."
+            )
+
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+
+        db_id = metadata.get("db_id")
+        split = metadata.get("split", "dw")
+
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            hf_token = hf_token.strip()
+        if not hf_token:
+            raise ValueError("HF_TOKEN is not set in the environment or .env file.")
+
+        token_arg = None if hf_token == "use_env" else hf_token
+
+        # Lazy import datasets to avoid startup delay
+        from datasets import load_dataset
+
+        logger.info("Loading beaverbench/beaver-query (split=%s) from Hugging Face...", split)
+        try:
+            query_dataset = load_dataset("beaverbench/beaver-query", split=split, token=token_arg)
+        except Exception as e:
+            logger.warning(
+                "Failed to load beaverbench/beaver-query from Hugging Face: %s. "
+                "Falling back to local offline Beaver benchmark queries.", str(e)
+            )
+            return fallback_queries
+
+        # Filter queries matching the active db
+        db_queries = [row for row in query_dataset if row["db"] == db_id]
+
+        benchmark_queries = []
+        for row in db_queries:
+            gold_sql = row["sql"]
+            
+            # expected tables is stored as a JSON string
+            try:
+                expected_tables = json.loads(row["tables"])
+            except Exception:
+                raw_tables = row.get("tables", "")
+                if raw_tables:
+                    expected_tables = [t.strip().strip('"\'') for t in raw_tables.strip("[]").split(",") if t.strip()]
+                else:
+                    expected_tables = []
+
+            # subtasks based on category & details
+            subtasks = []
+            category = row.get("category")
+            if category:
+                subtasks.append(category)
+            detailed = row.get("detailed_category")
+            if detailed:
+                subtasks.append(detailed)
+            if row.get("contains_domain_knowledge"):
+                subtasks.append("domain_knowledge")
+
+            benchmark_queries.append({
+                "question": row["question"],
+                "ground_truth_sql": gold_sql,
+                "expected_tables": expected_tables,
+                "subtasks": subtasks
+            })
+
+        # Limit queries to run to save Groq API credits/tokens
+        max_queries = int(os.getenv("MAX_BENCHMARK_QUERIES", "25"))
+        if max_queries > 0:
+            benchmark_queries = benchmark_queries[:max_queries]
+
+        logger.info("Loaded %d benchmark queries for active database '%s'.", len(benchmark_queries), db_id)
+        return benchmark_queries

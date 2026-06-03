@@ -2,16 +2,12 @@ from typing import List
 
 FEW_SHOT_EXAMPLES = [
     {
-        "question": "How many employees are in each department?",
-        "sql": "SELECT d.name, COUNT(e.id) AS employee_count FROM departments d LEFT JOIN employees e ON d.id = e.department_id GROUP BY d.name;",
+        "question": "How many buildings are registered?",
+        "sql": "SELECT COUNT(*) FROM BUILDINGS;",
     },
     {
-        "question": "What is the average salary by department?",
-        "sql": "SELECT d.name, AVG(e.salary) AS avg_salary FROM departments d JOIN employees e ON d.id = e.department_id GROUP BY d.name;",
-    },
-    {
-        "question": "Which department has the highest budget?",
-        "sql": "SELECT name, budget FROM departments ORDER BY budget DESC LIMIT 1;",
+        "question": "List the names of all buildings.",
+        "sql": "SELECT BUILDING_NAME FROM BUILDINGS;",
     },
 ]
 

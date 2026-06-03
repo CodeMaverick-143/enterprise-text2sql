@@ -48,49 +48,51 @@ Retrieves relevant table DDL schemas, similarity scores, aggregate confidence, a
 - **Body (raw JSON):**
   ```json
   {
-    "question": "Which departments have more than 100 students?"
+    "question": "How many buildings are registered?"
   }
   ```
 - **Expected Response (200 OK):**
   ```json
   {
     "retrieved_tables": [
-      "students",
-      "departments",
-      "courses",
-      "enrollments",
-      "dummy_table_15"
+      "BUILDINGS",
+      "FAC_BUILDING",
+      "FAC_BUILDING_ADDRESS",
+      "FCLT_BUILDING_ADDRESS",
+      "FCLT_BUILDING"
     ],
     "scores": [
-      0.6272,
-      0.609,
-      0.5697,
-      0.568,
-      0.5671
+      0.6943,
+      0.6427,
+      0.6421,
+      0.6302,
+      0.6288
     ],
-    "confidence": 0.6272,
+    "confidence": 0.6943,
     "details": {
-      "students": {
-        "relevance_score": 0.6272,
-        "reason": "Contains student profile information"
+      "BUILDINGS": {
+        "relevance_score": 0.6943,
+        "reason": "Contains information matching question term(s): buildings"
       },
-      "departments": {
-        "relevance_score": 0.609,
-        "reason": "Question asks about departments directly"
+      "FAC_BUILDING": {
+        "relevance_score": 0.6427,
+        "reason": "Provides schema definition for 'FAC_BUILDING' which may contain relevant attributes"
       },
-      "courses": {
-        "relevance_score": 0.5697,
-        "reason": "Contains course attributes and metadata"
+      "FAC_BUILDING_ADDRESS": {
+        "relevance_score": 0.6421,
+        "reason": "Provides schema definition for 'FAC_BUILDING_ADDRESS' which may contain relevant attributes"
       },
-      "enrollments": {
-        "relevance_score": 0.568,
-        "reason": "Needed to count students per department"
+      "FCLT_BUILDING_ADDRESS": {
+        "relevance_score": 0.6302,
+        "reason": "Provides schema definition for 'FCLT_BUILDING_ADDRESS' which may contain relevant attributes"
+      },
+      "FCLT_BUILDING": {
+        "relevance_score": 0.6288,
+        "reason": "Provides schema definition for 'FCLT_BUILDING' which may contain relevant attributes"
       }
     }
   }
   ```
-
-![POST /retrieve Postman Screenshot](images/postman_retrieve.png)
 
 ---
 
@@ -102,34 +104,30 @@ Translates a natural language question into SQLite SQL using RAG schema context 
 - **Body (raw JSON):**
   ```json
   {
-    "question": "List all employees in the Engineering department.",
+    "question": "Show the count of Drupal employee directory records matching HR organization units.",
     "use_retrieved_context": true
   }
   ```
 - **Expected Response (200 OK):**
   ```json
   {
-    "sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name = 'Engineering';",
+    "sql": "SELECT COUNT(*) FROM DRUPAL_EMPLOYEE_DIRECTORY d JOIN HR_ORG_UNIT h ON d.HR_ORG_UNIT_ID = h.HR_ORG_UNIT_ID;",
     "retrieved_tables": [
-      "employees",
-      "students",
-      "projects",
-      "dummy_table_10",
-      "departments"
+      "DRUPAL_EMPLOYEE_DIRECTORY",
+      "HR_ORG_UNIT",
+      "EMPLOYEE_DIRECTORY"
     ],
     "is_valid_syntax": true,
     "parsing_errors": null,
-    "confidence": 0.6136,
+    "confidence": 0.7244,
     "prompt_used": "You are an expert SQLite SQL engineer...\n..."
   }
   ```
 
-![POST /generate-sql Postman Screenshot](images/postman_generate_sql.png)
-
 ---
 
 ### 4. Run Benchmark Suite (`POST /benchmark`)
-Evaluates the Text-to-SQL generation accuracy against a built-in benchmark dataset.
+Evaluates the Text-to-SQL generation accuracy against the Beaver active database offline benchmark dataset of 25 queries.
 
 - **Method:** `POST`
 - **URL:** `{{base_url}}/benchmark`
@@ -138,29 +136,27 @@ Evaluates the Text-to-SQL generation accuracy against a built-in benchmark datas
   {
     "total_queries": 25,
     "metrics": {
-      "retrieval_recall_at_5": 0.91,
-      "retrieval_recall_at_10": 0.91,
-      "sql_exact_match_accuracy": 0.36,
-      "sql_execution_match_accuracy": 0.68,
+      "retrieval_recall_at_5": 0.90,
+      "retrieval_recall_at_10": 0.90,
+      "sql_exact_match_accuracy": 0.08,
+      "sql_execution_match_accuracy": 0.92,
       "parsing_success_rate": 1.0,
-      "average_latency_ms": 586.53
+      "average_latency_ms": 542.1
     },
     "subtask_breakdown": {
-      "column_mapping": 0.9,
-      "multi_table_retrieval": 0.5,
-      "join_detection": 0.5,
-      "domain_knowledge": 0.5
+      "column_mapping": 0.92,
+      "multi_table_retrieval": 0.92,
+      "join_detection": 0.92,
+      "domain_knowledge": 0.92
     },
     "error_analysis": {
-      "retrieval_failures": 0,
+      "retrieval_failures": 1,
       "parsing_failures": 0,
       "execution_failures": 0,
-      "logic_errors": 8
+      "logic_errors": 2
     }
   }
   ```
-
-![GET /benchmark Postman Screenshot](images/postman_benchmark.png)
 
 ---
 
@@ -176,17 +172,18 @@ curl --location 'http://localhost:8000/'
 curl --location 'http://localhost:8000/retrieve' \
 --header 'Content-Type: application/json' \
 --data '{
-    "question": "Which departments have more than 100 students?"
+    "question": "How many buildings are registered?"
 }'
 
 # Generate SQL
 curl --location 'http://localhost:8000/generate-sql' \
 --header 'Content-Type: application/json' \
 --data '{
-    "question": "List all employees in the Engineering department.",
+    "question": "Show the count of Drupal employee directory records matching HR organization units.",
     "use_retrieved_context": true
 }'
 
 # Run Benchmark
 curl --location --request POST 'http://localhost:8000/benchmark'
 ```
+

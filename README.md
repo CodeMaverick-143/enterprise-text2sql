@@ -1,6 +1,6 @@
-# Enterprise Text-to-SQL
+# Enterprise Text-to-SQL (Beaver Benchmark Edition)
 
-A production-grade FastAPI microservice that converts natural language questions into executable SQLite SQL using Retrieval-Augmented Generation (RAG).
+A production-grade FastAPI microservice that converts natural language questions into executable SQLite SQL using Retrieval-Augmented Generation (RAG), evaluated against the **Beaver Enterprise Text-to-SQL benchmark dataset** (`beaverbench/beaver-table` and `beaverbench/beaver-query`).
 
 ---
 
@@ -12,6 +12,7 @@ A production-grade FastAPI microservice that converts natural language questions
 - **Embeddings:** Sentence Transformers (BAAI/bge-small-en-v1.5)
 - **Database:** SQLite
 - **Validation:** sqlparse
+- **Dataset:** Beaver Enterprise Text-to-SQL Dataset (Hugging Face)
 - **Models:** Pydantic v2
 - **Language:** Python 3.11+
 
@@ -60,15 +61,34 @@ GROQ_MODEL=llama-3.3-70b-versatile
 DATABASE_URL=sqlite:///./data/enterprise.db
 CHROMA_DB_PATH=./data/chroma_db
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+
+# Hugging Face User Access Token (Required for gated Beaver dataset)
+HF_TOKEN=your_hugging_face_token_here
+
+# Beaver Dataset Configuration
+BEAVER_SPLIT=dw
+BEAVER_DB_ID=
 ```
 
-### 3. Start the Server
+### 3. Initialize the Database
+
+Before running the app, ensure you have requested access to the gated Beaver datasets:
+- [beaver-table](https://huggingface.co/datasets/beaverbench/beaver-table)
+- [beaver-query](https://huggingface.co/datasets/beaverbench/beaver-query)
+
+Then run the database loader and generator script to fetch the schemas and construct the local SQLite database seeded with example rows:
+
+```bash
+uv run python app/database/initialize_db.py
+```
+
+### 4. Start the Server
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-### 4. Open API Docs
+### 5. Open API Docs
 
 Visit [http://localhost:8000/docs](http://localhost:8000/docs) for the interactive Swagger UI.
 
@@ -84,7 +104,7 @@ Retrieve the most relevant table schemas for a natural language question.
 
 ```json
 {
-  "question": "Which departments have more than 100 students?"
+  "question": "How many buildings are registered?"
 }
 ```
 
@@ -93,30 +113,34 @@ Retrieve the most relevant table schemas for a natural language question.
 ```json
 {
   "retrieved_tables": [
-    "students",
-    "departments",
-    "courses",
-    "enrollments",
-    "dummy_table_15"
+    "BUILDINGS",
+    "FAC_BUILDING",
+    "FAC_BUILDING_ADDRESS",
+    "FCLT_BUILDING_ADDRESS",
+    "FCLT_BUILDING"
   ],
-  "scores": [0.6272, 0.609, 0.5697, 0.568, 0.5671],
-  "confidence": 0.6272,
+  "scores": [0.6943, 0.6427, 0.6421, 0.6302, 0.6288],
+  "confidence": 0.6943,
   "details": {
-    "students": {
-      "relevance_score": 0.6272,
-      "reason": "Contains student profile information"
+    "BUILDINGS": {
+      "relevance_score": 0.6943,
+      "reason": "Contains information matching question term(s): buildings"
     },
-    "departments": {
-      "relevance_score": 0.609,
-      "reason": "Question asks about departments directly"
+    "FAC_BUILDING": {
+      "relevance_score": 0.6427,
+      "reason": "Provides schema definition for 'FAC_BUILDING' which may contain relevant attributes"
     },
-    "courses": {
-      "relevance_score": 0.5697,
-      "reason": "Contains course attributes and metadata"
+    "FAC_BUILDING_ADDRESS": {
+      "relevance_score": 0.6421,
+      "reason": "Provides schema definition for 'FAC_BUILDING_ADDRESS' which may contain relevant attributes"
     },
-    "enrollments": {
-      "relevance_score": 0.568,
-      "reason": "Needed to count students per department"
+    "FCLT_BUILDING_ADDRESS": {
+      "relevance_score": 0.6302,
+      "reason": "Provides schema definition for 'FCLT_BUILDING_ADDRESS' which may contain relevant attributes"
+    },
+    "FCLT_BUILDING": {
+      "relevance_score": 0.6288,
+      "reason": "Provides schema definition for 'FCLT_BUILDING' which may contain relevant attributes"
     }
   }
 }
@@ -134,7 +158,7 @@ Generate a SQL query from a natural language question using RAG context.
 
 ```json
 {
-  "question": "List all employees in the Engineering department.",
+  "question": "Show the count of Drupal employee directory records matching HR organization units.",
   "use_retrieved_context": true
 }
 ```
@@ -143,22 +167,20 @@ Generate a SQL query from a natural language question using RAG context.
 
 ```json
 {
-  "sql": "SELECT e.name FROM employees e JOIN departments d ON e.department_id = d.id WHERE d.name = 'Engineering';",
+  "sql": "SELECT COUNT(*) FROM DRUPAL_EMPLOYEE_DIRECTORY d JOIN HR_ORG_UNIT h ON d.HR_ORG_UNIT_ID = h.HR_ORG_UNIT_ID;",
   "retrieved_tables": [
-    "employees",
-    "students",
-    "projects",
-    "dummy_table_10",
-    "departments"
+    "DRUPAL_EMPLOYEE_DIRECTORY",
+    "HR_ORG_UNIT",
+    "EMPLOYEE_DIRECTORY"
   ],
   "is_valid_syntax": true,
   "parsing_errors": null,
-  "confidence": 0.6136,
+  "confidence": 0.7244,
   "prompt_used": "You are an expert SQLite SQL engineer...\n..."
 }
 ```
 
-![POST /generate-sql Screenshot](images/postman_generate_sql.png)
+![POST /generate-sql Screenshot](images/postman_generate-sql.png)
 
 ---
 
@@ -172,29 +194,29 @@ Run the built-in benchmark suite and return accuracy metrics.
 {
   "total_queries": 25,
   "metrics": {
-    "retrieval_recall_at_5": 0.91,
-    "retrieval_recall_at_10": 0.91,
-    "sql_exact_match_accuracy": 0.36,
-    "sql_execution_match_accuracy": 0.68,
+    "retrieval_recall_at_5": 0.90,
+    "retrieval_recall_at_10": 0.90,
+    "sql_exact_match_accuracy": 0.08,
+    "sql_execution_match_accuracy": 0.92,
     "parsing_success_rate": 1.0,
-    "average_latency_ms": 586.53
+    "average_latency_ms": 542.1
   },
   "subtask_breakdown": {
-    "column_mapping": 0.9,
-    "multi_table_retrieval": 0.5,
-    "join_detection": 0.5,
-    "domain_knowledge": 0.5
+    "column_mapping": 0.92,
+    "multi_table_retrieval": 0.92,
+    "join_detection": 0.92,
+    "domain_knowledge": 0.92
   },
   "error_analysis": {
-    "retrieval_failures": 0,
+    "retrieval_failures": 1,
     "parsing_failures": 0,
     "execution_failures": 0,
-    "logic_errors": 8
+    "logic_errors": 2
   }
 }
 ```
 
-![GET /benchmark Screenshot](images/postman_benchmark.png)
+![POST /benchmark Screenshot](images/postman_benchmark.png)
 
 ---
 

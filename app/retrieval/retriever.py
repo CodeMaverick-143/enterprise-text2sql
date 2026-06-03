@@ -56,27 +56,24 @@ class SchemaRetriever:
     @staticmethod
     def get_heuristic_reason(table: str, question: str) -> str:
         q = question.lower()
-        if table == "departments":
-            if "department" in q or "dept" in q:
-                return "Question asks about departments directly"
-            return "Needed to join department names or details"
-        elif table == "enrollments":
-            if "enroll" in q or "student" in q:
-                return "Needed to count students per department"
-            return "Contains student enrollment mappings"
-        elif table == "courses":
-            if "online" in q or "course" in q:
-                return "Used to filter by course attribute (online/offline)"
-            return "Contains course attributes and metadata"
-        elif table == "employees":
-            if "salary" in q or "earn" in q or "pay" in q:
-                return "Contains salary information for employees"
-            return "Contains employee details requested by the query"
-        elif table == "students":
-            return "Contains student profile information"
-        elif table == "projects":
-            return "Contains project metadata and budgets"
-        return f"Provides schema definition for {table}"
+        t = table.lower()
+
+        # Extract potential keyword overlaps
+        words = [w.strip("?,.()\"'") for w in q.split()]
+        matched_terms = []
+        for word in words:
+            if len(word) >= 3 and (word in t or t in word):
+                matched_terms.append(word)
+
+        if matched_terms:
+            return f"Contains information matching question term(s): {', '.join(matched_terms)}"
+
+        if "dim_" in t or "_dim" in t or "dimension" in t:
+            return f"Dimensional lookup table containing descriptive attributes for {table.replace('dim_', '').replace('_dim', '')}"
+        if "fact_" in t or "_fact" in t or "fact" in t:
+            return "Transactional fact table containing core business metrics and logs"
+
+        return f"Provides schema definition for '{table}' which may contain relevant attributes"
 
     def retrieve(self, question: str, top_k: int = 5) -> Dict[str, Any]:
         count = self.collection.count()
