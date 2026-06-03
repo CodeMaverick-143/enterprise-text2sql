@@ -1,7 +1,7 @@
 [project]
-name = "project"
+name = "enterprise-text2sql"
 version = "0.1.0"
-description = "Add your description here"
+description = "Enterprise Text-to-SQL API using RAG with FastAPI, ChromaDB, and Groq"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
