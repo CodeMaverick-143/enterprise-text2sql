@@ -236,6 +236,42 @@ User Question
 
 ---
 
+## Components & Implementation Approach
+
+The system is structured as a modular, decoupled pipeline where each stage is handled by a specialized component:
+
+### 1. Database Schema Loader (`app/database/schema_loader.py`)
+- **Responsibility**: Inspects the target SQLite database.
+- **Approach**: Queries SQLite's `sqlite_master` to retrieve all tables, columns, data types, and primary/foreign key relationships. It dynamically formats these as standard SQL DDL statements.
+
+### 2. Semantic Embedding & Retrieval (`app/retrieval/`)
+- **Responsibility**: Performs semantic search to extract relevant table schemas.
+- **Approach**: 
+  - `embedder.py` uses HuggingFace `SentenceTransformers` (`BAAI/bge-small-en-v1.5`) to generate dense vector embeddings of each table's DDL representation.
+  - `retriever.py` loads these embeddings into an in-memory `ChromaDB` vector store at application startup. When a user asks a question, ChromaDB queries the vector store, computes cosine similarities, and retrieves the top-K relevant tables along with confidence scores and reasoning explanations.
+
+### 3. Prompt Engineering (`app/llm/prompt_builder.py`)
+- **Responsibility**: Constructs high-context prompts for the LLM.
+- **Approach**: Synthesizes the user's natural language question, retrieved table DDL schemas, general instruction guidelines, and a set of few-shot examples (demonstrating proper table joins, functions, and database column mappings).
+
+### 4. LLM SQL Generation (`app/llm/generator.py`)
+- **Responsibility**: Runs remote inference to generate pure SQL queries.
+- **Approach**: Interfaces with the Groq API using `llama-3.3-70b-versatile`. It parses the markdown response to isolate and clean the generated SQL.
+
+### 5. SQL Validation & Safety Guardrails (`app/validation/sql_validator.py`)
+- **Responsibility**: Checks syntax and blocks dangerous write queries.
+- **Approach**: Tokenizes queries using `sqlparse` and enforces strict SELECT-only query validation, raising HTTP errors if mutative statements are detected.
+
+### 6. SQL Execution (`app/database/executor.py`)
+- **Responsibility**: Runs the query and fetches rows.
+- **Approach**: Opens a read-only SQLite database connection, runs the SELECT statement safely, and returns the tabular result payload.
+
+### 7. Evaluation & Benchmarking (`app/benchmark/evaluator.py`)
+- **Responsibility**: Evaluates model performance across test suites.
+- **Approach**: Iterates through a dataset of 25 text-to-SQL tasks. It matches predicted SQL execution outputs with ground truth results, computing recall, exact-match, latency, and categorization breakdowns.
+
+---
+
 ## Security Guardrails
 
 - **SELECT-only enforcement:** Only SELECT queries are permitted. The validator blocks DROP, DELETE, UPDATE, ALTER, TRUNCATE, INSERT, CREATE, and REPLACE.
